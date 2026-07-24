@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SCP - Forschungs Archiv // Forschungs Terminal</title>
+
+  <style>
+    /* --- CS-TERMINAL THEME & RESET --- */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Courier New', Courier, monospace;
+    }
+
+    body {
+      background-color: #050a08;
+      color: #00ff66;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* CRT Scanline & Screen Glow Effect */
+    body::before {
+      content: " ";
+      display: block;
+      position: absolute;
+      top: 0; left: 0; bottom: 0; right: 0;
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+      z-index: 1000;
+      background-size: 100% 3px, 6px 100%;
+      pointer-events: none;
+    }
+
+    /* Scrollbar Design */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #020c07;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #00ff66;
+      border-radius: 2px;
+    }
+
+    /* --- LOGIN MODAL --- */
+    .login-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(4px);
+      z-index: 600;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .login-overlay.open {
+      display: flex;
+      animation: fadeIn 0.2s forwards;
+    }
+
+    .login-box {
+      background: #02120a;
+      border: 2px solid #00ff66;
+      padding: 30px;
+      width: 100%;
+      max-width: 450px;
+      box-shadow: 0 0 30px rgba(0, 255, 102, 0.3);
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      position: relative;
+    }
+
+    .login-header {
+      border-bottom: 1px dashed #00ff66;
+      padding-bottom: 10px;
+      text-align: center;
+    }
+
+    .login-error {
+      color: #ff3333;
+      font-size: 0.85rem;
+      display: none;
+      text-align: center;
+      border: 1px solid #ff3333;
+      padding: 6px;
+      background: rgba(255, 51, 51, 0.1);
+    }
+
+    /* --- HEADER --- */
+    header {
+      background: #02120a;
+      border-bottom: 2px solid #00ff66;
+      padding: 15px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 0 15px rgba(0, 255, 102, 0.2);
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .title-zone h1 {
+      font-size: 1.2rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      text-shadow: 0 0 8px #00ff66;
+    }
+
+    .status-bar {
+      font-size: 0.85rem;
+      opacity: 0.9;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .blink {
+      animation: blinker 1s linear infinite;
+    }
+
+    @keyframes blinker {
+      50% { opacity: 0; }
+    }
+
+    /* --- MAIN LAYOUT --- */
+    .container {
+      display: flex;
+      flex: 1;
+      height: calc(100vh - 60px);
+    }
+
+    /* --- SIDEBAR / FILE LIST --- */
+    sidebar {
+      width: 320px;
+      background: #020c07;
+      border-right: 1px solid #00ff66;
+      display: flex;
+      flex-direction: column;
+      padding: 15px;
+      gap: 15px;
+    }
+
+    .search-box, .input-field, .textarea-field, select.input-field {
+      width: 100%;
+      background: #000;
+      border: 1px solid #00ff66;
+      color: #00ff66;
+      padding: 10px;
+      outline: none;
+      font-size: 0.9rem;
+      font-family: inherit;
+    }
+
+    .checkbox-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      user-select: none;
+      padding: 8px;
+      border: 1px dashed rgba(0, 255, 102, 0.4);
+      background: rgba(0, 255, 102, 0.05);
+    }
+
+    .checkbox-container input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: #00ff66;
+      cursor: pointer;
+    }
+
+    .file-tree {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .file-item {
+      padding: 10px;
+      border: 1px solid rgba(0, 255, 102, 0.3);
+      background: rgba(0, 255, 102, 0.03);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .file-item:hover, .file-item.active {
+      background: #00ff66;
+      color: #000;
+      font-weight: bold;
+      box-shadow: 0 0 10px rgba(0, 255, 102, 0.5);
+    }
+
+    .badge-private {
+      color: #ffaa00;
+      border: 1px solid #ffaa00;
+      font-size: 0.65rem;
+      padding: 2px 4px;
+      text-transform: uppercase;
+    }
+
+    /* BUTTONS */
+    .btn-action {
+      background: rgba(0, 255, 102, 0.1);
+      border: 1px solid #00ff66;
+      color: #00ff66;
+      padding: 12px;
+      cursor: pointer;
+      font-weight: bold;
+      font-family: inherit;
+      letter-spacing: 1px;
+      transition: all 0.2s;
+      text-transform: uppercase;
+    }
+
+    .btn-action:hover {
+      background: #00ff66;
+      color: #000;
+      box-shadow: 0 0 12px rgba(0, 255, 102, 0.6);
+    }
+
+    .btn-cancel {
+      background: rgba(255, 51, 51, 0.1);
+      border: 1px solid #ff3333;
+      color: #ff3333;
+    }
+
+    .btn-cancel:hover {
+      background: #ff3333;
+      color: #000;
+      box-shadow: 0 0 12px rgba(255, 51, 51, 0.6);
+    }
+
+    .btn-delete {
+      background: rgba(255, 51, 51, 0.15);
+      border: 1px solid #ff3333;
+      color: #ff3333;
+      padding: 6px 12px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 0.8rem;
+      font-family: inherit;
+      transition: all 0.2s;
+    }
+
+    .btn-delete:hover {
+      background: #ff3333;
+      color: #000;
+      box-shadow: 0 0 10px rgba(255, 51, 51, 0.6);
+    }
+
+    .btn-toggle-public {
+      background: rgba(255, 170, 0, 0.15);
+      border: 1px solid #ffaa00;
+      color: #ffaa00;
+      padding: 6px 12px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 0.8rem;
+      font-family: inherit;
+      transition: all 0.2s;
+    }
+
+    .btn-toggle-public:hover {
+      background: #ffaa00;
+      color: #000;
+      box-shadow: 0 0 10px rgba(255, 170, 0, 0.6);
+    }
+
+    .btn-auth {
+      background: transparent;
+      border: 1px solid #00ff66;
+      color: #00ff66;
+      padding: 5px 10px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: bold;
+      transition: all 0.2s;
+    }
+
+    .btn-auth:hover {
+      background: #00ff66;
+      color: #000;
+      box-shadow: 0 0 8px rgba(0, 255, 102, 0.5);
+    }
+
+    .btn-logout {
+      display: none;
+    }
+
+    /* --- MAIN DISPLAY PANEL --- */
+    main {
+      flex: 1;
+      padding: 25px;
+      overflow-y: auto;
+      position: relative;
+      background: #030805;
+    }
+
+    /* --- WELCOME SCREEN STYLES --- */
+    #welcome-screen {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 80vh;
+      gap: 15px;
+    }
+
+    .welcome-logo {
+      max-width: 280px;
+      width: 100%;
+      height: auto;
+      border: 1px solid rgba(0, 255, 102, 0.4);
+      box-shadow: 0 0 25px rgba(0, 255, 102, 0.2);
+      border-radius: 4px;
+      margin-bottom: 10px;
+    }
+
+    /* --- MODAL (GROSSES EINGABEFENSTER) --- */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(4px);
+      z-index: 200;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .modal-overlay.open {
+      display: flex;
+      animation: fadeIn 0.2s forwards;
+    }
+
+    .modal-container {
+      background: #02120a;
+      border: 2px solid #00ff66;
+      width: 100%;
+      max-width: 900px;
+      max-height: 90vh;
+      box-shadow: 0 0 30px rgba(0, 255, 102, 0.3);
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      padding: 25px;
+      overflow-y: auto;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px dashed #00ff66;
+      padding-bottom: 10px;
+    }
+
+    .modal-header h2 {
+      font-size: 1.1rem;
+      letter-spacing: 1px;
+    }
+
+    .modal-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 15px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .form-group label {
+      font-size: 0.8rem;
+      font-weight: bold;
+      color: #00ff66;
+    }
+
+    .textarea-medium {
+      min-height: 90px;
+      resize: vertical;
+    }
+
+    .image-preview {
+      max-width: 200px;
+      max-height: 150px;
+      margin-top: 10px;
+      border: 1px solid #00ff66;
+      display: none;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      margin-top: 15px;
+      border-top: 1px dashed #00ff66;
+      padding-top: 15px;
+    }
+
+    /* --- PC BOOT / LOADING OVERLAY --- */
+    #pc-loader {
+      display: none;
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: #000;
+      z-index: 50;
+      padding: 30px;
+      flex-direction: column;
+      justify-content: flex-start;
+      gap: 10px;
+      font-size: 0.95rem;
+    }
+
+    .progress-bar-container {
+      width: 100%;
+      max-width: 500px;
+      border: 1px solid #00ff66;
+      height: 20px;
+      margin-top: 15px;
+      padding: 2px;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: #00ff66;
+      width: 0%;
+      transition: width 0.1s linear;
+      box-shadow: 0 0 10px #00ff66;
+    }
+
+    /* --- DOSSIER / CONTENT DISPLAY --- */
+    .dossier {
+      display: none;
+      max-width: 900px;
+      margin: 0 auto;
+      border: 1px solid rgba(0, 255, 102, 0.4);
+      padding: 25px;
+      background: rgba(2, 18, 10, 0.6);
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+    }
+
+    .dossier.active {
+      display: block;
+      animation: fadeIn 0.3s forwards;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .dossier-top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .dossier-top-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    .dossier-header {
+      border-bottom: 2px dashed #00ff66;
+      padding-bottom: 15px;
+      margin-bottom: 20px;
+    }
+
+    .dossier-meta {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 10px;
+      margin-bottom: 20px;
+      background: rgba(0, 255, 102, 0.05);
+      padding: 10px;
+      border-left: 3px solid #00ff66;
+    }
+
+    .dossier-section {
+      margin-bottom: 20px;
+      border-bottom: 1px solid rgba(0, 255, 102, 0.15);
+      padding-bottom: 15px;
+    }
+
+    .dossier-section h3 {
+      font-size: 1rem;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+      color: #00ff66;
+      background: rgba(0, 255, 102, 0.08);
+      padding: 4px 8px;
+      display: inline-block;
+      border-left: 3px solid #00ff66;
+    }
+
+    .dossier-body {
+      line-height: 1.6;
+      white-space: pre-line;
+      font-size: 0.92rem;
+    }
+
+    .dossier-image {
+      max-width: 100%;
+      max-height: 400px;
+      border: 1px solid #00ff66;
+      margin-top: 10px;
+      box-shadow: 0 0 10px rgba(0, 255, 102, 0.3);
+    }
+
+    .classified-stamp {
+      color: #ff3333;
+      border: 2px solid #ff3333;
+      display: inline-block;
+      padding: 5px 10px;
+      font-weight: bold;
+      letter-spacing: 2px;
+      transform: rotate(-2deg);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- LOGIN MODAL -->
+  <div class="login-overlay" id="loginOverlay">
+    <div class="login-box">
+      <span style="position: absolute; top: 15px; right: 15px; cursor: pointer; font-weight: bold;" onclick="closeLoginModal()">[X]</span>
+      <div class="login-header">
+        <p class="classified-stamp" style="margin-bottom: 10px;">AUTHENTIFIZIERUNG</p>
+        <h3>ADMIN / FORSCHER LOGIN</h3>
+      </div>
+      <p style="font-size: 0.85rem; opacity: 0.8;">> BENÖTIGE FREIGABE FÜR INTERNE AKTEN UND BEARBEITUNG...</p>
+      
+      <div class="form-group">
+        <label>> PASSWORT EINGEBEN:</label>
+        <input type="password" id="passwordInput" class="input-field" placeholder="••••••••" onkeydown="if(event.key === 'Enter') attemptLogin()">
+      </div>
+
+      <div class="login-error blink" id="loginError">> ZUGRIFF VERWEIGERT: UNGÜLTIGES PASSWORT</div>
+
+      <button class="btn-action" onclick="attemptLogin()">[ ANMELDEN ]</button>
+    </div>
+  </div>
+
+  <!-- HEADER / SYSTEM STATUS -->
+  <header>
+    <div class="header-left">
+      <button class="btn-auth" id="headerLoginBtn" onclick="openLoginModal()">[ LOGIN ]</button>
+      <div class="title-zone">
+        <h1>SCP - Forschungs Archiv &nbsp;/ / &nbsp;Forschungs Terminal</h1>
+      </div>
+    </div>
+    
+    <div class="status-bar">
+      <span>STATUS: <span class="blink" style="color: #00ff66;">ONLINE</span> | ROLLE: <span id="userRoleTag" style="color: #00ff66;">GAST</span></span>
+      <button class="btn-auth btn-logout" id="logoutBtn" onclick="logout()">[ LOGOUT ]</button>
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER -->
+  <div class="container">
+
+    <!-- SIDEBAR: AKTEN-VERZEICHNIS -->
+    <sidebar>
+      <input type="text" class="search-box" id="searchInput" placeholder="> DATEI SUCHEN..." onkeyup="filterFiles()">
+      
+      <!-- Liste der Beiträge -->
+      <div class="file-tree" id="fileTree"></div>
+
+      <!-- KNOPF ZUM ÖFFNEN DES FENSTERS -->
+      <button class="btn-action" onclick="triggerCreatePost()">[+] AKTE ANLEGEN</button>
+    </sidebar>
+
+    <!-- MAIN PANEL -->
+    <main>
+
+      <!-- SIMULIERTER PC-LADEBILDSCHIRM -->
+      <div id="pc-loader">
+        <p>> INITIALISIERE VERBINDUNG ZUM SCP-ARCHIV SERVER...</p>
+        <p id="load-step-1" style="display:none;">> ENTPROTOKOLLIERE DATEI-STREAM...</p>
+        <p id="load-step-2" style="display:none;">> DECHIFFRIERE SICHERHEITS-SCHLÜSSEL [AES-256]...</p>
+        <p id="load-step-3" style="display:none;">> LADE SPEICHERSEGMENTE...</p>
+        
+        <div class="progress-bar-container" id="pbar-box" style="display:none;">
+          <div class="progress-bar-fill" id="pbar"></div>
+        </div>
+        <p id="load-complete" style="display:none; color: #00ff66;" class="blink">> ZUGRIFF GEWÄHRT. LADE DOKUMENT...</p>
+      </div>
+
+      <!-- WILLKOMMENS-BILDSCHIRM (STANDBY) -->
+      <div id="welcome-screen">
+        <img src="welcome-logo.gif.gif" alt="SCP Foundation Logo" class="welcome-logo">
+        <p class="classified-stamp">STRENG GEHEIM</p>
+        <h2>WILLKOMMEN IM SCP FORSCHUNGS-TERMINAL</h2>
+        <p style="opacity: 0.7;">Wähle eine Akte aus dem linken Verzeichnis oder erstelle einen neuen Eintrag.</p>
+      </div>
+
+      <!-- DOSSIER ANZEIGEBEREICH -->
+      <div id="dossier-view" class="dossier">
+        <div class="dossier-top-bar">
+          <div class="classified-stamp" id="doc-stamp">GEHEIMHALTUNGSSTUFE IV</div>
+          
+          <div class="dossier-top-actions">
+            <button class="btn-toggle-public" id="togglePublicBtn" onclick="toggleCurrentPostPublic()"></button>
+            <button class="btn-delete" id="deleteBtn" onclick="triggerDeletePost()">[X] AKTE LÖSCHEN</button>
+          </div>
+        </div>
+        
+        <div class="dossier-header">
+          <h2 id="doc-title">SUBJEKT ID</h2>
+        </div>
+        <div class="dossier-meta">
+          <div><strong>OBJEKTBEZEICHNUNG:</strong> <span id="doc-code">-</span></div>
+          <div><strong>OBJEKTKLASSE:</strong> <span id="doc-class">-</span></div>
+          <div><strong>FUNDORT:</strong> <span id="doc-location">-</span></div>
+          <div><strong>SICHTBARKEIT:</strong> <span id="doc-visibility" style="font-weight: bold;">-</span></div>
+        </div>
+
+        <div id="doc-sections">
+          <!-- Dynamisch erzeugte Forschungs-Sektionen -->
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- GROSSES FENSTER (MODAL) ZUM ANLEGEN NEUER AKTEN -->
+  <div class="modal-overlay" id="postModal">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h2>[+] NEUE DOSSIER-AKTE ANLEGEN</h2>
+        <span style="cursor: pointer; font-weight: bold;" onclick="closeModal()">[X]</span>
+      </div>
+
+      <!-- FREIGABE CHECKBOX -->
+      <label class="checkbox-container">
+        <input type="checkbox" id="newIsPublic">
+        <span><strong>BERICHT ÖFFENTLICH MACHEN</strong> (Für jeden frei lesbar)</span>
+      </label>
+
+      <!-- KOPFDATEN -->
+      <div class="modal-grid">
+        <div class="form-group">
+          <label>> OBJEKTBEZEICHNUNG:*</label>
+          <input type="text" id="newId" class="input-field" placeholder="z.B. SCP-019 / Subjekt-X">
+        </div>
+        <div class="form-group">
+          <label>> OBJEKTKLASSE:*</label>
+          <select id="newClass" class="input-field">
+            <option value="Sicher">Sicher</option>
+            <option value="Euklid">Euklid</option>
+            <option value="Keter">Keter</option>
+            <option value="Vertraulich">Vertraulich</option>
+            <option value="Gefährlich">Gefährlich</option>
+            <option value="Apollyon">Apollyon</option>
+            <option value="Neutralisiert">Neutralisiert</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>> FUNDORT:</label>
+          <input type="text" id="newLocation" class="input-field" placeholder="z.B. Sektor 7 / Arktisches Eismeer">
+        </div>
+      </div>
+
+      <!-- UNTERSUCHUNGSPROTOKOLL + BILD -->
+      <div class="form-group">
+        <label>> UNTERSUCHUNGSPROTOKOLL:*</label>
+        <textarea id="newUntersuchung" class="input-field textarea-medium" placeholder="Detailliertes Untersuchungsprotokoll eingeben..."></textarea>
+      </div>
+
+      <div class="modal-grid">
+        <div class="form-group">
+          <label>> BILD ZUM PROTOKOLL (BILD-URL):</label>
+          <input type="text" id="newImageUrl" class="input-field" placeholder="https://beispiel.de/bild.jpg" oninput="previewImage()">
+        </div>
+        <div class="form-group">
+          <label>> ODER BILD VOM PC HOCHLADEN:</label>
+          <input type="file" id="newImageFile" class="input-field" accept="image/*" onchange="handleFileUpload(event)">
+        </div>
+      </div>
+      <img id="imagePreview" class="image-preview" alt="Vorschau">
+
+      <!-- FORSCHUNGS-KATEGORIEN -->
+      <div class="form-group">
+        <label>> ÄUSSERE ANATOMIE:</label>
+        <textarea id="newAussereAnatomie" class="input-field textarea-medium" placeholder="Beschreibungen der äußeren Erscheinung, Merkmale..."></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>> INNERE ANATOMIE:</label>
+        <textarea id="newInnereAnatomie" class="input-field textarea-medium" placeholder="Organe, Gewebestruktur, innere Systeme..."></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>> BLUTANALYSE:</label>
+        <textarea id="newBlutanalyse" class="input-field textarea-medium" placeholder="Zusammensetzung, Auffälligkeiten, Reaktionen..."></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>> GENETISCHE ANALYSE:</label>
+        <textarea id="newGenetik" class="input-field textarea-medium" placeholder="DNS-Struktur, Mutationen, Chromosomen-Anomalien..."></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>> TODESURSACHE:</label>
+        <textarea id="newTodesursache" class="input-field textarea-medium" placeholder="Falls neutralisiert/verstorben: Ursache oder Autopsie-Befund..."></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>> GEFAHRENEINSCHÄTZUNG:</label>
+        <textarea id="newGefahr" class="input-field textarea-medium" placeholder="Bedrohungspotenzial, Eindämmungsprotokolle..."></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>> MÖGLICHE SCHWACHSTELLEN UND ANGRIFFSPUNKTE:</label>
+        <textarea id="newSchwachstellen" class="input-field textarea-medium" placeholder="Taktische Schwachstellen, Anfälligkeiten..."></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>> SCHLUSSBEMERKUNG:</label>
+        <textarea id="newSchlussbemerkung" class="input-field textarea-medium" placeholder="Fazit der Forschung, Empfehlungen..."></textarea>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-action btn-cancel" onclick="closeModal()">ABBRECHEN</button>
+        <button class="btn-action" onclick="createNewPost()">AKTE SPEICHERN</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let uploadedImageBase64 = "";
+    let currentActiveId = null;
+    let pendingAction = null;
+
+    /* --- AUTHENTIFIZIERUNGS-SYSTEM --- */
+    function isLoggedIn() {
+      return sessionStorage.getItem('scp_logged_in') === 'true';
+    }
+
+    function updateUIState() {
+      const logged = isLoggedIn();
+      const roleTag = document.getElementById('userRoleTag');
+      const logoutBtn = document.getElementById('logoutBtn');
+      const loginBtn = document.getElementById('headerLoginBtn');
+      const deleteBtn = document.getElementById('deleteBtn');
+      const togglePublicBtn = document.getElementById('togglePublicBtn');
+
+      if (logged) {
+        roleTag.innerText = 'ADMIN / FORSCHER';
+        roleTag.style.color = '#00ff66';
+        logoutBtn.style.display = 'inline-block';
+        loginBtn.style.display = 'none';
+        deleteBtn.style.display = 'inline-block';
+        togglePublicBtn.style.display = 'inline-block';
+      } else {
+        roleTag.innerText = 'GAST (NUR ÖFFENTLICHE LESEN)';
+        roleTag.style.color = '#ffaa00';
+        logoutBtn.style.display = 'none';
+        loginBtn.style.display = 'inline-block';
+        deleteBtn.style.display = 'none';
+        togglePublicBtn.style.display = 'none';
+      }
+
+      renderFileList(filterDataForUser(archiveData));
+    }
+
+    function openLoginModal(action = null) {
+      pendingAction = action;
+      document.getElementById('loginOverlay').classList.add('open');
+      document.getElementById('passwordInput').focus();
+    }
+
+    function closeLoginModal() {
+      document.getElementById('loginOverlay').classList.remove('open');
+      document.getElementById('passwordInput').value = '';
+      document.getElementById('loginError').style.display = 'none';
+      pendingAction = null;
+    }
+
+    function attemptLogin() {
+      const pass = document.getElementById('passwordInput').value;
+      const errorMsg = document.getElementById('loginError');
+
+      if (pass === 'mojo') {
+        sessionStorage.setItem('scp_logged_in', 'true');
+        closeLoginModal();
+        updateUIState();
+
+        if (pendingAction === 'create') {
+          openModal();
+        } else if (pendingAction === 'delete') {
+          deleteCurrentPost();
+        }
+      } else {
+        errorMsg.style.display = 'block';
+        document.getElementById('passwordInput').value = '';
+      }
+    }
+
+    function logout() {
+      sessionStorage.removeItem('scp_logged_in');
+      
+      if (currentActiveId) {
+        const currentDoc = archiveData.find(item => item.id === currentActiveId);
+        if (currentDoc && !currentDoc.isPublic) {
+          document.getElementById('dossier-view').classList.remove('active');
+          document.getElementById('welcome-screen').style.display = 'flex';
+          currentActiveId = null;
+        }
+      }
+
+      updateUIState();
+    }
+
+    /* --- GESCHÜTZTE AKTIONEN (TRIGGER) --- */
+    function triggerCreatePost() {
+      if (isLoggedIn()) {
+        openModal();
+      } else {
+        openLoginModal('create');
+      }
+    }
+
+    function triggerDeletePost() {
+      if (isLoggedIn()) {
+        deleteCurrentPost();
+      } else {
+        openLoginModal('delete');
+      }
+    }
+
+    /* --- STANDARD DATENBANK DER BEITRÄGE --- */
+    const defaultArchiveData = [
+      {
+        id: "G-0019",
+        title: "Beitrag G-0019",
+        classification: "GEFÄHRLICH",
+        location: "Sektor 7",
+        isPublic: true,
+        untersuchung: "Objekt G-0019 wurde bei Bergungsarbeiten sichergestellt. Es handelt sich um eine autonome mechanische Einheit mit unvollständiger Energiequelle.",
+        image: "",
+        aussereAnatomie: "Gepanzerte Hülle aus unbekannter Legierung, mehrere optische Sensoren.",
+        innereAnatomie: "Keine organischen Gewebe festgestellt. Hochkomplexe Mikromotoren.",
+        blutanalyse: "N/A (Nicht organisch)",
+        genetik: "N/A",
+        todesursache: "Aktiv, nicht verstorben.",
+        gefahr: "Hoch. Kann elektromagnetische Impulse aussenden.",
+        schwachstellen: "Empfindlich gegenüber stark gezielten Gravitationswellen.",
+        schlussbemerkung: "Dauerhafte Isolierung in einer Faraday-Kassette erforderlich."
+      }
+    ];
+
+    /* --- DATEN AUS LOCALSTORAGE LADEN ODER INITIALISIEREN --- */
+    function getArchiveData() {
+      const stored = localStorage.getItem('scp_archive_data_v3');
+      if (stored) {
+        return JSON.parse(stored);
+      } else {
+        localStorage.setItem('scp_archive_data_v3', JSON.stringify(defaultArchiveData));
+        return defaultArchiveData;
+      }
+    }
+
+    let archiveData = getArchiveData();
+
+    /* --- SICHTBARKEITS-FILTER --- */
+    function filterDataForUser(data) {
+      if (isLoggedIn()) {
+        return data;
+      }
+      return data.filter(item => item.isPublic === true);
+    }
+
+    /* --- BILD-VORSCHAU & HOCHLADEN --- */
+    function previewImage() {
+      const url = document.getElementById('newImageUrl').value.trim();
+      const preview = document.getElementById('imagePreview');
+      if (url) {
+        preview.src = url;
+        preview.style.display = 'block';
+      } else if (!uploadedImageBase64) {
+        preview.style.display = 'none';
+      }
+    }
+
+    function handleFileUpload(event) {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          uploadedImageBase64 = e.target.result;
+          const preview = document.getElementById('imagePreview');
+          preview.src = uploadedImageBase64;
+          preview.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+
+    /* --- MODAL STEUERUNG --- */
+    function openModal() {
+      document.getElementById('postModal').classList.add('open');
+    }
+
+    function closeModal() {
+      document.getElementById('postModal').classList.remove('open');
+    }
+
+    window.onclick = function(event) {
+      const modal = document.getElementById('postModal');
+      const loginModal = document.getElementById('loginOverlay');
+      if (event.target === modal) {
+        closeModal();
+      }
+      if (event.target === loginModal) {
+        closeLoginModal();
+      }
+    };
+
+    /* --- SIDEBAR LISTE GENERIEREN --- */
+    function renderFileList(items) {
+      const tree = document.getElementById('fileTree');
+      tree.innerHTML = '';
+
+      if (items.length === 0) {
+        tree.innerHTML = '<div style="opacity:0.5; font-size:0.8rem; padding:10px;">Keine Akten verfügbar</div>';
+        return;
+      }
+      
+      items.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'file-item';
+        
+        const badge = (!item.isPublic && isLoggedIn()) ? `<span class="badge-private">PRIVAT</span>` : '';
+
+        div.innerHTML = `<span>> ${item.id} ${badge}</span> <small>${item.classification}</small>`;
+        div.onclick = () => loadDocumentWithBootEffect(item);
+        tree.appendChild(div);
+      });
+    }
+
+    /* --- NEUEN BEITRAG HINZUFÜGEN --- */
+    function createNewPost() {
+      const id = document.getElementById('newId').value.trim();
+      const classification = document.getElementById('newClass').value;
+      const location = document.getElementById('newLocation').value.trim();
+      const isPublic = document.getElementById('newIsPublic').checked;
+      const untersuchung = document.getElementById('newUntersuchung').value.trim();
+      
+      const imageUrl = document.getElementById('newImageUrl').value.trim();
+      const finalImage = uploadedImageBase64 || imageUrl;
+
+      if (!id || !untersuchung) {
+        alert("Bitte fülle mindestens die Objektbezeichnung und das Untersuchungsprotokoll aus!");
+        return;
+      }
+
+      const newEntry = {
+        id: id,
+        title: `Beitrag ${id}`,
+        classification: classification,
+        location: location || "Unbekannt",
+        isPublic: isPublic,
+        untersuchung: untersuchung,
+        image: finalImage,
+        aussereAnatomie: document.getElementById('newAussereAnatomie').value.trim(),
+        innereAnatomie: document.getElementById('newInnereAnatomie').value.trim(),
+        blutanalyse: document.getElementById('newBlutanalyse').value.trim(),
+        genetik: document.getElementById('newGenetik').value.trim(),
+        todesursache: document.getElementById('newTodesursache').value.trim(),
+        gefahr: document.getElementById('newGefahr').value.trim(),
+        schwachstellen: document.getElementById('newSchwachstellen').value.trim(),
+        schlussbemerkung: document.getElementById('newSchlussbemerkung').value.trim()
+      };
+
+      archiveData.unshift(newEntry);
+      localStorage.setItem('scp_archive_data_v3', JSON.stringify(archiveData));
+      
+      // Formular zurücksetzen
+      document.getElementById('newId').value = '';
+      document.getElementById('newLocation').value = '';
+      document.getElementById('newIsPublic').checked = false;
+      document.getElementById('newUntersuchung').value = '';
+      document.getElementById('newImageUrl').value = '';
+      document.getElementById('newImageFile').value = '';
+      document.getElementById('newAussereAnatomie').value = '';
+      document.getElementById('newInnereAnatomie').value = '';
+      document.getElementById('newBlutanalyse').value = '';
+      document.getElementById('newGenetik').value = '';
+      document.getElementById('newTodesursache').value = '';
+      document.getElementById('newGefahr').value = '';
+      document.getElementById('newSchwachstellen').value = '';
+      document.getElementById('newSchlussbemerkung').value = '';
+      document.getElementById('imagePreview').style.display = 'none';
+      uploadedImageBase64 = "";
+
+      closeModal();
+      renderFileList(filterDataForUser(archiveData));
+      loadDocumentWithBootEffect(newEntry);
+    }
+
+    /* --- FREIGABE NACHTRÄGLICH UMSCHALTEN --- */
+    function toggleCurrentPostPublic() {
+      if (!currentActiveId || !isLoggedIn()) return;
+
+      const item = archiveData.find(doc => doc.id === currentActiveId);
+      if (item) {
+        item.isPublic = !item.isPublic;
+        localStorage.setItem('scp_archive_data_v3', JSON.stringify(archiveData));
+        showDossier(item);
+        renderFileList(filterDataForUser(archiveData));
+      }
+    }
+
+    /* --- BEITRAG LÖSCHEN --- */
+    function deleteCurrentPost() {
+      if (!currentActiveId) return;
+
+      const confirmDelete = confirm(`BIST DU SICHER, DASS DU DIE AKTE "${currentActiveId}" ENDGÜLTIG LÖSCHEN MÖCHTEST?`);
+      if (confirmDelete) {
+        archiveData = archiveData.filter(item => item.id !== currentActiveId);
+        localStorage.setItem('scp_archive_data_v3', JSON.stringify(archiveData));
+        
+        document.getElementById('dossier-view').classList.remove('active');
+        document.getElementById('welcome-screen').style.display = 'flex';
+        currentActiveId = null;
+
+        renderFileList(filterDataForUser(archiveData));
+      }
+    }
+
+    /* --- VIRTUELLER PC-LADE-EFFEKT (BOOT ANIMATION) --- */
+    function loadDocumentWithBootEffect(item) {
+      const loader = document.getElementById('pc-loader');
+      const welcome = document.getElementById('welcome-screen');
+      const dossier = document.getElementById('dossier-view');
+      const pbar = document.getElementById('pbar');
+      
+      welcome.style.display = 'none';
+      dossier.classList.remove('active');
+      loader.style.display = 'flex';
+
+      document.getElementById('load-step-1').style.display = 'none';
+      document.getElementById('load-step-2').style.display = 'none';
+      document.getElementById('load-step-3').style.display = 'none';
+      document.getElementById('pbar-box').style.display = 'none';
+      document.getElementById('load-complete').style.display = 'none';
+      pbar.style.width = '0%';
+
+      setTimeout(() => { document.getElementById('load-step-1').style.display = 'block'; }, 300);
+      setTimeout(() => { document.getElementById('load-step-2').style.display = 'block'; }, 800);
+      setTimeout(() => { 
+        document.getElementById('load-step-3').style.display = 'block'; 
+        document.getElementById('pbar-box').style.display = 'block';
+      }, 1300);
+
+      setTimeout(() => {
+        let progress = 0;
+        const interval = setInterval(() => {
+          progress += 10;
+          pbar.style.width = progress + '%';
+          if (progress >= 100) {
+            clearInterval(interval);
+            document.getElementById('load-complete').style.display = 'block';
+
+            setTimeout(() => {
+              loader.style.display = 'none';
+              showDossier(item);
+            }, 500);
+          }
+        }, 60);
+      }, 1400);
+    }
+
+    /* --- DOKUMENT INHALT ANZEIGEN --- */
+    function showDossier(item) {
+      currentActiveId = item.id;
+      document.getElementById('doc-title').innerText = item.id;
+      document.getElementById('doc-code').innerText = item.id;
+      document.getElementById('doc-class').innerText = item.classification;
+      document.getElementById('doc-location').innerText = item.location || "Nicht angegeben";
+      
+      const visTag = document.getElementById('doc-visibility');
+      const toggleBtn = document.getElementById('togglePublicBtn');
+
+      if (item.isPublic) {
+        visTag.innerText = "ÖFFENTLICH";
+        visTag.style.color = "#00ff66";
+        toggleBtn.innerText = "[ AUF PRIVAT STELLEN ]";
+      } else {
+        visTag.innerText = "PRIVAT (NUR EINGELOGGT)";
+        visTag.style.color = "#ffaa00";
+        toggleBtn.innerText = "[ ÖFFENTLICH SCHALTEN ]";
+      }
+
+      const sectionsContainer = document.getElementById('doc-sections');
+      sectionsContainer.innerHTML = '';
+
+      const fields = [
+        { label: "UNTERSUCHUNGSPROTOKOLL", value: item.untersuchung, image: item.image },
+        { label: "ÄUSSERE ANATOMIE", value: item.aussereAnatomie },
+        { label: "INNERE ANATOMIE", value: item.innereAnatomie },
+        { label: "BLUTANALYSE", value: item.blutanalyse },
+        { label: "GENETISCHE ANALYSE", value: item.genetik },
+        { label: "TODESURSACHE", value: item.todesursache },
+        { label: "GEFAHRENEINSCHÄTZUNG", value: item.gefahr },
+        { label: "MÖGLICHE SCHWACHSTELLEN UND ANGRIFFSPUNKTE", value: item.schwachstellen },
+        { label: "SCHLUSSBEMERKUNG", value: item.schlussbemerkung }
+      ];
+
+      fields.forEach(field => {
+        if (field.value || field.image) {
+          const sec = document.createElement('div');
+          sec.className = 'dossier-section';
+          
+          let html = `<h3>${field.label}</h3>`;
+          if (field.value) {
+            html += `<div class="dossier-body">${field.value}</div>`;
+          }
+          if (field.image) {
+            html += `<br><img src="${field.image}" class="dossier-image" alt="Anhang Bild">`;
+          }
+          
+          sec.innerHTML = html;
+          sectionsContainer.appendChild(sec);
+        }
+      });
+
+      document.getElementById('dossier-view').classList.add('active');
+    }
+
+    /* --- SUCHFUNKTION --- */
+    function filterFiles() {
+      const query = document.getElementById('searchInput').value.toLowerCase();
+      const visibleData = filterDataForUser(archiveData);
+      const filtered = visibleData.filter(item => 
+        item.id.toLowerCase().includes(query) || 
+        (item.untersuchung && item.untersuchung.toLowerCase().includes(query))
+      );
+      renderFileList(filtered);
+    }
+
+    // Initialisierung
+    updateUIState();
+  </script>
+</body>
+</html>
